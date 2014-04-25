@@ -18,12 +18,16 @@ fail_connect_test() ->
 fail_connect_pool_test_() ->
     {foreach,
      fun() ->
+	 application:start(asn1),
+	 application:start(public_key),
          ok = application:start(ssl),
          ok = application:start(lhttpc)
      end,
      fun(_) ->
          application:stop(lhttpc),
-         application:stop(ssl)
+         application:stop(ssl),
+	 application:stop(public_key),
+	 application:stop(asn1)
      end,
      [{"Fail to connect on ensure pool",
        fun() ->

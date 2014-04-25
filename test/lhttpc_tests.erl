@@ -41,6 +41,7 @@ test_no(N, Tests) ->
 
 start_app() ->
     application:start(crypto),
+    application:start(asn1),
     application:start(public_key),
     ok = application:start(ssl),
     ok = lhttpc:start().

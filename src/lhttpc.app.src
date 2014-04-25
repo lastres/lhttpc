@@ -34,7 +34,7 @@
         {vsn, "1.2.6"},
         {modules, []},
         {registered, [lhttpc_sup, lhttpc_manager]},
-        {applications, [kernel, stdlib, ssl, crypto]},
+        {applications, [kernel, stdlib, ssl, crypto, public_key, asn1]},
   {mod, {lhttpc, nil}},
   {env, [{connection_timeout, 300000}, {pool_size, 50}]}
  ]}.
