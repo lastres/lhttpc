@@ -1,4 +1,4 @@
-# LHTTPC - Lightweight HTTP Client #
+# LHTTPC - [![Build Status](https://travis-ci.org/lastres/lhttpc.svg?branch=v1.2.7)](https://travis-ci.org/lastres/lhttpc)
 
 Copyright (c) 2009-2013 Erlang Solutions Ltd.
 
@@ -13,6 +13,7 @@ Some of the basic features provided by Lhttpc:
 - Support for IPv6
 - Optional automatic cookie handling
 - Chunked encoding
+- No message passing (only on asynchronous chunked download).
 
 ## Starting
 
@@ -70,18 +71,17 @@ lhttpc:request("http://www.erlang-solutions.com", get, [], [], 100, [{pool_optio
 
 The `lhttpc_manager` module provides functions to retrive information about the pools:
 
-```
->lhttpc_manager:connection_count(my_pool).
+```erlang
+1>lhttpc_manager:connection_count(my_pool).
 0
->lhttpc:request("http://www.erlang-solutions.com", get, [], [], 100, [{pool_options, [{pool, my_pool}]}]).
->lhttpc_manager:connection_count(my_pool).
+2>lhttpc:request("http://www.erlang-solutions.com", get, [], [], 100, [{pool_options, [{pool, my_pool}]}]).
+3>lhttpc_manager:connection_count(my_pool).
 1
->
->lhttpc_manager:list_pools().
+4>lhttpc_manager:list_pools().
 [{my_pool,[{max_pool_size,50},{timeout,300000}]}]
->lhttpc_manager:update_connection_timeout(my_pool, 1000).
+5>lhttpc_manager:update_connection_timeout(my_pool, 1000).
 ok
->lhttpc_manager:list_pools().
+6>lhttpc_manager:list_pools().
 [{my_pool,[{max_pool_size,50},{timeout,1000}]}]
 ```
 
@@ -90,7 +90,7 @@ Lhttpc supports basic cookie handling. If you want the client process to automat
 
 ### Transfering the body by chunks
 
-If you want to send the body of the request by chunks, you can specify the `{partial_upload, true}` option. Then use the `send_body_part/2` and `send_body_part/3` functions to send the body parts. `http_eob` signals the end of the body. As an example:
+To be able to send the body divided in different parts, it is necessary to first start the client and then use the `request_client` functions, since it is necessary to reuse the client for the calls to `send_body_part` functions. You need to specify the `{partial_upload, true}` option. Then use the `send_body_part/2` and `send_body_part/3` functions to send the body parts. `http_eob` signals the end of the body. As an example:
 
 ```erlang
 {ok, Client} = lhttpc:connect_client("http://erlang-solutions.com", []),
@@ -98,4 +98,55 @@ lhttpc:request_client(Client, "/", get, [], [], 100, [{partial_upload, true}]),
 lhttpc:send_body_part(Client, <<"some part of the body">>),
 lhttpc:send_body_part(Client, <<"more body">>),
 lhttpc:send_body_part(Client, http_eob).
+```
+
+### Partial download of the response body
+
+It is also possible to download the body of the response by chunks. For this it is also necessary to connect the client first. The response body will be sent asynchronously to the specified process:
+
+```erlang
+1> {ok, Client} = lhttpc:connect_client("http://www.google.com", []).
+{ok,<0.40.0>}
+2> lhttpc:request_client(Client, "/", get, [], [], 100, [{partial_download, [{window_size, infinity},{recv_proc, self()}]}]).
+{ok,{{302,"Found"},
+     [{"Alternate-Protocol","80:quic"},
+      {"Server","GFE/2.0"},
+      {"Date","Wed, 30 Apr 2014 11:22:09 GMT"},
+      {"Content-Length","258"},
+      {"Location",
+       "http://www.google.co.uk/?gfe_rd=cr&ei=4dxgU_jHA8SK8QfWhQE"},
+      {"Content-Type","text/html; charset=UTF-8"},
+      {"Cache-Control","private"}],
+     partial_download}}
+3> flush().
+Shell got {body_part,<<"<HTML><HEAD><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">\n<TITLE>302 Moved</TITLE></HEAD><BODY>\n<H1>302 Moved</H1>\nThe document has moved\n<A HREF=\"http://www.google.co.uk/?gfe_rd=cr&amp;ei=4dxgU_jHA8SK8QfWhQE\">here</A>.\r\n</BODY></HTML>\r\n">>}
+Shell got {http_eob,[]}
+ok
+```
+
+You can control the flow by using the `window_size` and the `part_size` options:
+
+```erlang
+4> lhttpc:request_client(Client, "/", get, [], [], 100, [{partial_download, [{window_size, 2}, {part_size, 100}, {recv_proc, self()}]}]).
+{ok,{{302,"Found"},
+     [{"Alternate-Protocol","80:quic"},
+      {"Server","GFE/2.0"},
+      {"Date","Wed, 30 Apr 2014 11:23:51 GMT"},
+      {"Content-Length","258"},
+      {"Location",
+       "http://www.google.co.uk/?gfe_rd=cr&ei=R91gU4nwFcSK8QfWhQE"},
+      {"Content-Type","text/html; charset=UTF-8"},
+      {"Cache-Control","private"}],
+     partial_download}}
+5> flush().
+Shell got {body_part,<<"<HTML><HEAD><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">\n<TITLE>302 Moved</TIT">>}
+Shell got {body_part,<<"LE></HEAD><BODY>\n<H1>302 Moved</H1>\nThe document has moved\n<A HREF=\"http://www.google.co.uk/?gfe_rd=">>}
+Shell got {body_part,window_finished}
+ok
+6> lhttpc:get_body_part(Client).
+ok
+7> flush().
+Shell got {body_part,<<"cr&amp;ei=R91gU4nwFcSK8QfWhQE\">here</A>.\r\n</BODY></HTML>\r\n">>}
+Shell got {http_eob,[]}
+ok
 ```
