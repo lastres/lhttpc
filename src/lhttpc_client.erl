@@ -139,11 +139,25 @@ init({Destination, Options}) ->
                         is_ssl = S} = lhttpc_lib:parse_url(URL),
             {H, P, S}
     end,
+    Proxy = case proplists:get_value(proxy, Options) of
+        undefined ->
+            undefined;
+        ProxyUrl when is_list(ProxyUrl), not Ssl ->
+            % The point of HTTP CONNECT proxying is to use TLS tunneled in
+            % a plain HTTP/1.1 connection to the proxy (RFC2817).
+            throw(origin_server_not_https);
+        ProxyUrl when is_list(ProxyUrl) ->
+            lhttpc_lib:parse_url(ProxyUrl)
+    end,
     State = #client_state{host = Host, port = Port, ssl = Ssl, pool = Pool,
                           connect_timeout = ConnectTimeout,
                           connect_options = ConnectOptions,
                           use_cookies = UseCookies,
-                          pool_options = PoolOptions},
+                          pool_options = PoolOptions,
+			  proxy = Proxy,
+                          proxy_setup = false,
+                          proxy_ssl_options =
+                              proplists:get_value(proxy_ssl_options, Options, [])},
     %% Get a socket for the pool or exit
     case connect_socket(State) of
         {ok, NewState} ->
@@ -166,16 +180,6 @@ handle_call({request, PathOrUrl, Method, Hdrs, Body, Options}, From,
     PartialDownload = proplists:is_defined(partial_download, Options),
     PartialDownloadOptions = proplists:get_value(partial_download, Options, []),
     NormalizedMethod = lhttpc_lib:normalize_method(Method),
-    Proxy = case proplists:get_value(proxy, Options) of
-        undefined ->
-            undefined;
-        ProxyUrl when is_list(ProxyUrl), not Ssl ->
-            % The point of HTTP CONNECT proxying is to use TLS tunneled in
-            % a plain HTTP/1.1 connection to the proxy (RFC2817).
-            throw(origin_server_not_https);
-        ProxyUrl when is_list(ProxyUrl) ->
-            lhttpc_lib:parse_url(ProxyUrl)
-    end,
     {FinalPath, FinalHeaders, Host, Port} =
         url_extract(PathOrUrl, Hdrs, ClientHost, ClientPort),
     case {Host, Port} =:= {ClientHost, ClientPort} of
@@ -202,11 +206,7 @@ handle_call({request, PathOrUrl, Method, Hdrs, Body, Options}, From,
                                                 infinity),
                         part_size =
                             proplists:get_value(part_size, PartialDownloadOptions,
-                                                infinity),
-                        proxy = Proxy,
-                        proxy_setup = (Socket /= undefined),
-                        proxy_ssl_options =
-                            proplists:get_value(proxy_ssl_options, Options, [])},
+                                                infinity)},
             send_request(NewState);
         _ ->
             {reply, {error, host_or_port_different_to_connected}, State}
@@ -376,8 +376,7 @@ send_request(#client_state{proxy = #lhttpc_url{}, proxy_setup = false,
             ?HTTP_LINE_END],
     case lhttpc_sock:send(Socket, ConnectRequest, Ssl) of
         ok ->
-            {Reply, NewState} = read_proxy_connect_response(State, nil, nil),
-            {reply, Reply, NewState};
+            read_proxy_connect_response(State, nil, nil);
         {error, closed} ->
             close_socket(State),
             {reply, {error, proxy_connection_closed},
@@ -449,13 +448,14 @@ read_proxy_connect_response(State, StatusCode, StatusText) ->
             end,
             send_request(State2);
         {ok, http_eoh} ->
-            {{error, {proxy_connection_refused, StatusCode, StatusText}}, State};
+            {reply,
+	     {error, {proxy_connection_refused, StatusCode, StatusText}}, State};
         {error, closed} ->
             close_socket(State),
-            {{error, proxy_connection_closed},
+            {reply, {error, proxy_connection_closed},
              State#client_state{socket = undefined, request = undefined}};
         {error, Reason} ->
-            {{error, {proxy_connection_failed, Reason}},
+            {reply, {error, {proxy_connection_failed, Reason}},
              State#client_state{request = undefined}}
     end.
 
