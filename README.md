@@ -13,7 +13,7 @@ Some of the basic features provided by Lhttpc:
 - Support for IPv6
 - Optional automatic cookie handling
 - Chunked encoding
-- No message passing (only on asynchronous chunked download).
+- Connection through proxy (only to HTTPS servers).
 
 ## Starting
 

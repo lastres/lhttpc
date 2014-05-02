@@ -60,7 +60,8 @@
 
 -type partial_download_option() ::
         {'window_size', window_size()} |
-        {'part_size', non_neg_integer() | 'infinity'}.
+        {'part_size', non_neg_integer() | 'infinity'} |
+	{recv_proc, pid()}.
 
 -type option() ::
         {'connect_timeout', timeout()} |

@@ -173,8 +173,8 @@ init({Destination, Options}) ->
 %% @end
 %%------------------------------------------------------------------------------
 handle_call({request, PathOrUrl, Method, Hdrs, Body, Options}, From,
-            State = #client_state{ssl = Ssl, host = ClientHost, port = ClientPort,
-                                  socket = Socket, cookies = Cookies,
+            State = #client_state{host = ClientHost, port = ClientPort,
+                                  cookies = Cookies,
                                   use_cookies = UseCookies}) ->
     PartialUpload = proplists:get_value(partial_upload, Options, false),
     PartialDownload = proplists:is_defined(partial_download, Options),

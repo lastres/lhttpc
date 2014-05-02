@@ -187,6 +187,15 @@ delete_pool(PoolName) when is_atom(PoolName) ->
 %% The `pool_connection_timeout' specifies the time that the pool keeps a
 %% connection open before it gets closed, `pool_max_size' specifies the number of
 %% connections the pool can handle.
+%%
+%% `{proxy, ProxyUrl}' if this option is specified, a proxy server is used as
+%% an intermediary for all communication with the destination server. The link
+%% to the proxy server is established with the HTTP CONNECT method (RFC2817).
+%% Example value: {proxy, "http://john:doe@myproxy.com:3128"}
+%%
+%% `{proxy_ssl_options, SslOptions}' this is a list of SSL options to use for
+%% the SSL session created after the proxy connection is established. For a
+%% list of all available options, please check OTP's ssl module manpage.
 %% @end
 %%------------------------------------------------------------------------------
 -spec connect_client(destination(), options()) -> {ok, pid()} | ignore | {error, term()}.
@@ -277,15 +286,6 @@ request_client(Client, PathOrUrl, Method, Hdrs, Body, Timeout) ->
 %% `undefined'. The functions {@link get_body_part/1} and
 %% {@link get_body_part/2} can be used to read body parts in the calling
 %% process.
-%%
-%% `{proxy, ProxyUrl}' if this option is specified, a proxy server is used as
-%% an intermediary for all communication with the destination server. The link
-%% to the proxy server is established with the HTTP CONNECT method (RFC2817).
-%% Example value: {proxy, "http://john:doe@myproxy.com:3128"}
-%%
-%% `{proxy_ssl_options, SslOptions}' this is a list of SSL options to use for
-%% the SSL session created after the proxy connection is established. For a
-%% list of all available options, please check OTP's ssl module manpage.
 %%
 %% @end
 %%------------------------------------------------------------------------------
@@ -655,16 +655,14 @@ verify_partial_download([{part_size, Size} | Options]) when
     verify_partial_download(Options);
 verify_partial_download([{part_size, infinity} | Options]) ->
     verify_partial_download(Options);
-%verify_partial_download([{recv_proc, PidOrName} | Options])  when
-%      is_atom(PidOrName) ->
-%    Pid = whereis(PidOrName),
-%    is_alive(Pid) =:= true,
-%    verify_partial_download(Options);
-%verify_partial_download([{recv_proc, PidOrName} | Options]) when
-%      is_alive(Pid) ->
-%    verify_partial_download(Options);
-verify_partial_download([{recv_proc, _PidOrName} | Options]) ->
-    verify_partial_download(Options);
+verify_partial_download([{recv_proc, Pid} | Options]) when
+      is_pid(Pid) ->
+    case is_process_alive(Pid) of
+      true ->
+	 verify_partial_download(Options);
+      _ ->
+	erlang:error({bad_option, {partial_download, recv_proc}})
+    end;
 verify_partial_download([Option | _Options]) ->
     erlang:error({bad_option, {partial_download, Option}});
 verify_partial_download([]) ->
