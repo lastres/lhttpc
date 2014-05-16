@@ -1,3 +1,4 @@
+%%% -*- coding: latin-1 -*-
 %%% ----------------------------------------------------------------------------
 %%% Copyright (c) 2009-2013, Erlang Solutions Ltd.
 %%% All rights reserved.

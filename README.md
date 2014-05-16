@@ -1,4 +1,4 @@
-# LHTTPC - [![Build Status](https://travis-ci.org/lastres/lhttpc.svg?branch=v1.2.7)](https://travis-ci.org/lastres/lhttpc)
+# LHTTPC - [![Build Status](https://travis-ci.org/lastres/lhttpc.svg?branch=master)](https://travis-ci.org/lastres/lhttpc)
 
 Copyright (c) 2009-2013 Erlang Solutions Ltd.
 
